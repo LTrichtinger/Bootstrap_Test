@@ -1,0 +1,129 @@
+#Functions to generate AR(1) data with normal, t_5, and skewed distributions
+
+####Code for generating AR(1) data with normal distribution
+#input: N (sample size) scale_Psi (scaled shock covariance matrix) scale_Psi_2 (scaled shock covariance matrix for minor factors
+#if including model error) , scale_A1 (scaled autoregressive weight matrix), scale_A2 (scaled autoregressive weight matrix if
+#including model error), manifest variables (number of factors), Lambda1 (factor loading matrix), Lambda2 (factor loading matrix f
+#for minor factors), Lambda3 (factor loading matrix for unique factors), R (number of datasets generated), 
+#minor (number of minor factors included in the model 1+)
+
+gen_data <- function(N, scale_Psi1, scale_Psi2, scale_A1,scale_A2, Q,Lambda1, Lambda2, Lambda3,R,minor){ 
+  data_ts <- list()
+  for(i in 1:R){
+    z1 <-matrix(rep(0,dim(Lambda1)[2]))
+    z2 <-matrix(rep(0,dim(Lambda2)[2]))
+    z3 <-matrix(rep(0,dim(Lambda3)[2]))
+    for(t in 1:500){
+      z1 <- (scale_A1)%*%z1 + mvrnorm(n=1, mu=rep(0,dim(Lambda1)[2]),Sigma=scale_Psi1)
+      z2 <- (scale_A2)%*%z2 + mvrnorm(n=1, mu=rep(0,dim(Lambda2)[2]),Sigma=scale_Psi2)
+      I <-diag(P)
+      z3 <- mvrnorm(n=1,mu=rep(0,dim(Lambda3)[2]),Sigma=I)
+    }
+    
+    z1.2 <-matrix(NA, nrow = N, ncol=(Q))
+    z2.2 <-matrix(NA, nrow = N, ncol=(minor))
+    z3.2 <-matrix(NA, nrow= N, ncol=P)
+    z1.2[1,]=z1
+    z2.2[1,]=z2
+    z3.2[1,]=z3
+    
+    for (t in 1:(N-1))
+    {
+      z1.2[t+1,] = scale_A1%*%z1.2[t,] + mvrnorm(n=1, mu=rep(0,dim(Lambda1)[2]),Sigma=scale_Psi1)
+      z2.2[t+1,] = scale_A2%*%z2.2[t,] + mvrnorm(n=1, mu=rep(0,dim(Lambda2)[2]),Sigma=scale_Psi2)
+      z3.2[t+1,] = mvrnorm(n=1, mu=rep(0,dim(Lambda3)[2]),Sigma=I)
+    }
+    
+    Y <- Lambda1%*%t(z1.2) + Lambda2%*%t(z2.2) + Lambda3%*%t(z3.2) #generate model
+    data_ts[[i]] <- t(Y)
+  }
+  return(data_ts)
+}
+
+
+####Code for generating AR(1) data with t_5 distribution
+library(mvtnorm)
+
+gen_data_t <- function(N, scale_Psi1, scale_Psi2, scale_A1,scale_A2, Q,Lambda1, Lambda2, Lambda3,R,minor){ 
+  data_ts <- list()
+  for(i in 1:R){
+    z1 <-matrix(rep(0,dim(Lambda1)[2]))
+    z2 <-matrix(rep(0,dim(Lambda2)[2]))
+    z3 <-matrix(rep(0,dim(Lambda3)[2]))
+    for(t in 1:500){
+      z1 <- (scale_A1)%*%z1 + as.numeric(rmvt(n=1, sigma=scale_Psi1,df=5))
+      z2 <- (scale_A2)%*%z2 + as.numeric(rmvt(n=1, sigma=scale_Psi2,df=5))
+      I <-diag(P)
+      z3 <- as.numeric(rmvt(n=1, sigma=I,df=5))
+    }
+    
+    z1.2 <-matrix(NA, nrow = N, ncol=(Q))
+    z2.2 <-matrix(NA, nrow = N, ncol=(minor))
+    z3.2 <-matrix(NA, nrow= N, ncol=P)
+    z1.2[1,]=z1
+    z2.2[1,]=z2
+    z3.2[1,]=z3
+    
+    for (t in 1:(N-1))
+    {
+      z1.2[t+1,] = scale_A1%*%z1.2[t,] + as.numeric(rmvt(n=1, sigma=scale_Psi1,df=5))
+      z2.2[t+1,] = scale_A2%*%z2.2[t,] + as.numeric(rmvt(n=1, sigma=scale_Psi2,df=5))
+      z3.2[t+1,] = as.numeric(rmvt(n=1, sigma=I,df=5))
+    }
+    
+    Y <- Lambda1%*%t(z1.2) + Lambda2%*%t(z2.2) + Lambda3%*%t(z3.2) #generate model
+    data_ts[[i]] <- t(Y)
+  }
+  return(data_ts)
+}
+
+####Code for generating AR(1) data with skewed distribution
+library(mnonr)
+
+gen_data_skew <- function(N, scale_Psi1, scale_Psi2, scale_A1,scale_A2, Q,Lambda1, Lambda2, Lambda3,R,minor){ 
+  data_ts <- list()
+  mk <-(P*(P+2))
+  ms <-(mk - Q*(Q+.774))/1.641 -.001
+  ms2 <-(mk - P*(P+.774))/1.641 -.001
+  #mk <-ceiling(1.641*ms+Q*(Q+.774))
+  for(i in 1:R){
+    z1 <-matrix(rep(0,dim(Lambda1)[2]))
+    z2 <-matrix(rep(0,dim(Lambda2)[2]))
+    z3 <-matrix(rep(0,dim(Lambda3)[2]))
+    
+    for(t in 1:500){
+      u1 <-as.numeric(mnonr(n=1, p=Q,ms=ms,mk=mk, Sigma=scale_Psi1))
+      z1 <- (scale_A1)%*%z1 + u1
+      z2 <- (scale_A2)%*%z2 + as.numeric(mnonr(n=1, p=minor,ms=2.98,mk=10082.32, Sigma=scale_Psi2)) #place holder since we are not using any minor factors here
+      I <-diag(P)
+      z3 <- as.numeric(mnonr(n=1, p=P,ms=ms2,mk=mk, Sigma=I))
+    }
+    
+    z1.2 <-matrix(NA, nrow = N, ncol=(Q))
+    z2.2 <-matrix(NA, nrow = N, ncol=(minor))
+    z3.2 <-matrix(NA, nrow= N, ncol=P)
+    z1.2[1,]=z1
+    z2.2[1,]=z2
+    z3.2[1,]=z3
+    u <-matrix(NA, nrow=N, ncol=Q)
+    u[1,] <-u1
+    
+    for (t in 1:(N-1))
+    { u[t+1,] <-as.numeric(mnonr(n=1, p=Q,ms=ms,mk=mk, Sigma=scale_Psi1))
+    z1.2[t+1,] = scale_A1%*%z1.2[t,] + u[t+1,]
+    z2.2[t+1,] = scale_A2%*%z2.2[t,] + as.numeric(mnonr(n=1, p=minor,ms=2.98,mk=10082.32, Sigma=scale_Psi2))
+    z3.2[t+1,] = as.numeric(mnonr(n=1, p=P,ms=ms2,mk=mk, Sigma=I))
+    }
+    
+    skew_error<-matrix(nrow=N, ncol=P)
+    for(s in 1:P){
+      skew_error[,s]<-Lambda3[s,s] %*% rsnorm(N, mean = 0, sd = 1, xi = 3)
+    }
+    
+    skew_error <-scale(skew_error, center=T,scale=F) #center the random skew normal
+    
+    Y <- Lambda1%*%t(z1.2) + Lambda2%*%t(z2.2) + t(skew_error) #generate model
+    data_ts[[i]] <- t(Y)
+  }
+  return(data_ts)
+}
