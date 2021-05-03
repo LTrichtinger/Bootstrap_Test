@@ -1,0 +1,56 @@
+# BootTSCovCorr computes the asymptotic covariance using moving block bootstrap
+# input: X (n by p) and B (number of bootstrap replications)
+
+BootTSCovCorr<-function(X, B=500){
+  #Step 0: Set up
+  library(rlist)
+  N <-nrow(X)
+  P <-ncol(X)
+  
+  #Step 1: Make all possible l blocks from the centered data
+  #Step 1.1 Center the data
+  centered_X <- scale(X, scale=F)
+  attr(centered_X,"scaled:center")<-NULL 
+  
+  #Step 1.2 Create all possible blocks of length l
+  l <- round(N^(1/3))
+  
+  blocks <-list()
+  for(i in 1:(N-l+1)){
+    blocks[[i]] <-centered_X[i:(l+i-1), ]
+  }
+  
+  #Step 2: Make a bootstrap time series, Repeat step B times
+  #Step 2.1 Randomly draw k blocks from all the T-l+1 blocks 
+  #where k is the smallest integer that makes k*L >=N
+  
+  k <-ceiling(N/l)
+  
+  matrix_vectors <-matrix(NA, ncol=B, nrow=((P^2-P)/2))
+  set.seed(325)
+  for(b in 1:B){
+    sample_blocks <-list.sample(blocks, size=k, replace=T)
+    if(k*l > N){
+      extra_time <-(k*l)-N
+      sample_blocks[[k]] <-sample_blocks[[k]][-((l-extra_time+1):l),]
+    }
+    
+    #Step 2.2 get the bootstrap covariance matrix. 
+    boot_cov <-matrix(0, nrow=P, ncol=P)
+    for(ii in 1:k){
+      contribute <-t(sample_blocks[[ii]]) %*% sample_blocks[[ii]]
+      boot_cov <- boot_cov + contribute
+    }
+    
+    #Step 2.3 get the bootstrap correlation matrix
+    boot_cor <-cov2cor(boot_cov)
+    kk=1
+    for(c in 2:P){
+      for(r in 1:(c-1)){
+        matrix_vectors[kk,b] <-boot_cor[r,c]
+        kk <- kk+1
+      }#for r
+    }#for c
+  }#for b
+  N*cov(t(matrix_vectors))
+}
